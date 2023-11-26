@@ -7,15 +7,23 @@ const logoContainer = document.getElementById('logo-container');
 const chatContainer = document.getElementById('chat-messages');
 const cameraPopup = document.getElementById('camera-popup');
 const cameraPreview = document.getElementById('camera-preview');
-const takePictureBtn = document.getElementById('take-picture-btn');
 
 // Event listener for the logo container
-logoContainer.addEventListener('click', startListening);
+logoContainer.addEventListener('click', toggleListening);
 
 // Greet user on page load
 document.addEventListener('DOMContentLoaded', () => {
     generateBotResponse('Hello! How can I assist you today?');
 });
+
+// Toggle voice recognition
+function toggleListening() {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening();
+    }
+}
 
 // Start voice recognition
 function startListening() {
@@ -78,9 +86,21 @@ function processUserCommand(userInput) {
         openCameraPopup();
     } else if (userInput.includes('take a picture')) {
         takePicture();
+    } else if (userInput.includes('stop listening')) {
+        stopListening();
     } else {
         generateBotResponse('I\'m not sure how to respond to that. Can you please try a different command?');
     }
+}
+
+// Stop listening function
+function stopListening() {
+    isListening = false;
+    recognition.stop();
+    console.log('Stopped listening.');
+
+    // Resume logo animation when not listening
+    logoContainer.style.animationPlayState = 'running';
 }
 
 // Open website in a new tab
@@ -89,40 +109,15 @@ function openWebsite(url) {
     generateBotResponse(`Opening ${url}...`);
 }
 
-// Ask for camera access
-function askForCameraAccess() {
-    return new Promise((resolve, reject) => {
-        const userPrompt = confirm('This website wants to access your camera. Allow?');
-        if (userPrompt) {
-            resolve();
-        } else {
-            reject('User denied camera access.');
-        }
-    });
-}
-
-// Open camera popup with access prompt
+// Open camera popup
 function openCameraPopup() {
-    // Ask for camera access
-    askForCameraAccess()
-        .then(() => {
-            // Display the camera popup
-            cameraPopup.style.display = 'block';
+    // Display the camera popup
+    cameraPopup.style.display = 'block';
 
-            // Attempt to access the camera
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(handleCameraStream)
-                    .catch(handleCameraError);
-            } else {
-                console.error('Camera access is not supported in this browser.');
-                closeCameraPopup();
-            }
-        })
-        .catch(error => {
-            console.error(error);
-            closeCameraPopup();
-        });
+    // Ask for camera access
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(handleCameraStream)
+        .catch(handleCameraError);
 }
 
 // Handle camera stream
@@ -225,9 +220,3 @@ async function getMaleVoice() {
         }
     });
 }
-
-// Handle voices changed event
-speechSynthesis.onvoiceschanged = function () {
-    // Uncomment the next line if the voice button is used
-    // voiceButton.removeAttribute('disabled');
-};
