@@ -18,44 +18,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Toggle voice recognition
 function toggleListening() {
-    if (isListening) {
-        stopListening();
-    } else {
-        startListening();
-    }
+    isListening ? stopListening() : startListening();
 }
 
 // Start voice recognition
 function startListening() {
     isListening = true;
-
-    // Pause logo animation while listening
-    logoContainer.style.animationPlayState = 'paused';
+    pauseLogoAnimation();
 
     // Initialize SpeechRecognition
     recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    configureRecognition();
+    recognition.start();
+}
+
+// Configure SpeechRecognition settings
+function configureRecognition() {
     recognition.lang = 'en-US';
     recognition.continuous = true;
     recognition.interimResults = true;
 
-    // Set event listeners
     recognition.onstart = () => console.log('Listening...');
     recognition.onend = handleRecognitionEnd;
     recognition.onresult = handleRecognitionResult;
-
-    // Start recognition
-    recognition.start();
 }
 
 // Handle recognition end
 function handleRecognitionEnd() {
     console.log('Stopped listening.');
+    resumeLogoAnimation();
 
-    // Resume logo animation when not listening
-    logoContainer.style.animationPlayState = 'running';
-
-    // Restart recognition if still in listening mode
-    if (isListening) recognition.start();
+    if (isListening) {
+        recognition.start();
+    }
 }
 
 // Handle recognition results
@@ -72,35 +67,31 @@ function handleRecognitionResult(event) {
 
 // Process user commands
 function processUserCommand(userInput) {
-    if (userInput.includes('open youtube')) {
-        openWebsite('https://www.youtube.com/');
-    } else if (userInput.includes('open facebook')) {
-        openWebsite('https://www.facebook.com/');
-    } else if (userInput.includes('open instagram')) {
-        openWebsite('https://www.instagram.com/');
-    } else if (userInput.includes('open snapchat')) {
-        openWebsite('https://www.snapchat.com/');
-    } else if (userInput.includes('open spotify')) {
-        openWebsite('https://www.spotify.com/');
-    } else if (userInput.includes('open camera')) {
-        openCameraPopup();
-    } else if (userInput.includes('take a picture')) {
-        takePicture();
-    } else if (userInput.includes('stop listening')) {
-        stopListening();
-    } else {
-        generateBotResponse('I\'m not sure how to respond to that. Can you please try a different command?');
+    const commands = {
+        'open youtube': 'https://www.youtube.com/',
+        'open facebook': 'https://www.facebook.com/',
+        'open instagram': 'https://www.instagram.com/',
+        'open snapchat': 'https://www.snapchat.com/',
+        'open spotify': 'https://www.spotify.com/',
+        'open camera': openCameraPopup,
+        'take a picture': takePictureAndSave,
+        'stop listening': stopListening,
+    };
+
+    for (const command in commands) {
+        if (userInput.includes(command)) {
+            commands[command] instanceof Function ? commands[command]() : openWebsite(commands[command]);
+            return;
+        }
     }
+
+    generateBotResponse('I\'m not sure how to respond to that. Can you please try a different command?');
 }
 
 // Stop listening function
 function stopListening() {
     isListening = false;
     recognition.stop();
-    console.log('Stopped listening.');
-
-    // Resume logo animation when not listening
-    logoContainer.style.animationPlayState = 'running';
 }
 
 // Open website in a new tab
@@ -111,10 +102,29 @@ function openWebsite(url) {
 
 // Open camera popup
 function openCameraPopup() {
-    // Display the camera popup
-    cameraPopup.style.display = 'block';
+    askForCameraAccess()
+        .then(() => {
+            displayCameraPopup();
+            startCameraStream();
+        })
+        .catch(handleCameraError);
+}
 
-    // Ask for camera access
+// Ask for camera access
+function askForCameraAccess() {
+    return new Promise((resolve, reject) => {
+        const userPrompt = confirm('This website wants to access your camera. Allow?');
+        userPrompt ? resolve() : reject('User denied camera access.');
+    });
+}
+
+// Display camera popup
+function displayCameraPopup() {
+    cameraPopup.style.display = 'block';
+}
+
+// Start camera stream
+function startCameraStream() {
     navigator.mediaDevices.getUserMedia({ video: true })
         .then(handleCameraStream)
         .catch(handleCameraError);
@@ -122,11 +132,9 @@ function openCameraPopup() {
 
 // Handle camera stream
 function handleCameraStream(stream) {
-    // Set the camera preview source
     if ("srcObject" in cameraPreview) {
         cameraPreview.srcObject = stream;
     } else {
-        // Fallback for older browsers
         cameraPreview.src = window.URL.createObjectURL(stream);
     }
 }
@@ -137,30 +145,32 @@ function handleCameraError(error) {
     closeCameraPopup();
 }
 
-// Take a picture and download it
-function takePicture() {
+// Take a picture and save it
+function takePictureAndSave() {
+    const canvas = createCanvasFromCameraPreview();
+    const dataUrl = canvas.toDataURL('image/png');
+    localStorage.setItem('capturedPicture', dataUrl);
+    generateBotResponse('Picture taken and saved!');
+    closeCameraPopup();
+}
+
+// Create canvas from camera preview
+function createCanvasFromCameraPreview() {
     const canvas = document.createElement('canvas');
     canvas.width = cameraPreview.videoWidth;
     canvas.height = cameraPreview.videoHeight;
     canvas.getContext('2d').drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
-
-    // Convert the canvas content to a data URL
-    const dataUrl = canvas.toDataURL('image/png');
-
-    // Create a link element and trigger a download
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = 'snapshot.png';
-    link.click();
-
-    // Close the camera popup
-    closeCameraPopup();
+    return canvas;
 }
 
 // Close camera popup
 function closeCameraPopup() {
-    // Hide the camera popup and stop the camera stream
     cameraPopup.style.display = 'none';
+    stopCameraStream();
+}
+
+// Stop camera stream
+function stopCameraStream() {
     if (cameraPreview.srcObject) {
         const tracks = cameraPreview.srcObject.getTracks();
         tracks.forEach(track => track.stop());
@@ -219,4 +229,14 @@ async function getMaleVoice() {
             };
         }
     });
+}
+
+// Pause logo animation
+function pauseLogoAnimation() {
+    logoContainer.style.animationPlayState = 'paused';
+}
+
+// Resume logo animation
+function resumeLogoAnimation() {
+    logoContainer.style.animationPlayState = 'running';
 }
