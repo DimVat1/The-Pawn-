@@ -99,41 +99,39 @@ function openWebsite(url) {
 function openCameraInNewTab() {
     const newTab = window.open('', '_blank');
     newTab.document.write('<video id="camera-preview" autoplay playsinline></video>');
-    
+
     navigator.mediaDevices.getUserMedia({ video: true })
         .then(stream => {
-            newTab.document.getElementById('camera-preview').srcObject = stream;
-            newTab.document.addEventListener('message', handleNewTabMessage);
+            const videoElement = newTab.document.getElementById('camera-preview');
+            videoElement.srcObject = stream;
+            videoElement.addEventListener('click', () => takePictureInNewTab(newTab));
         })
         .catch(handleCameraError);
 
     generateBotResponse('Opening camera preview in a new tab...');
 }
 
-// Handle messages in the new tab
-function handleNewTabMessage(event) {
-    const command = event.data.toLowerCase();
-    if (command === 'take a picture') {
-        takePictureInNewTab();
-    }
+// Handle camera error
+function handleCameraError(error) {
+    console.error('Unable to access camera:', error);
+    generateBotResponse('Unable to access camera.');
 }
 
 // Take a picture in the new tab
-function takePictureInNewTab() {
-    const newTab = window.open('', '_blank');
-    const canvas = createCanvasFromCameraPreview(newTab.document.getElementById('camera-preview'));
-    const dataUrl = canvas.toDataURL('image/png');
-    localStorage.setItem('capturedPicture', dataUrl);
-    newTab.document.write('<p>Picture taken and saved!</p>');
-}
-
-// Create canvas from camera preview
-function createCanvasFromCameraPreview(videoElement) {
+function takePictureInNewTab(newTab) {
     const canvas = document.createElement('canvas');
+    const videoElement = newTab.document.getElementById('camera-preview');
+
     canvas.width = videoElement.videoWidth;
     canvas.height = videoElement.videoHeight;
-    canvas.getContext('2d').drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-    return canvas;
+
+    const context = canvas.getContext('2d');
+    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    localStorage.setItem('capturedPicture', dataUrl);
+
+    newTab.document.write('<p>Picture taken and saved!</p>');
 }
 
 // Generate bot response
